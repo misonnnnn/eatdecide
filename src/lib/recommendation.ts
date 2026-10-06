@@ -5,6 +5,8 @@ import type {
   Mood,
   OrderItem,
   Recommendation,
+  Restaurant,
+  RestaurantOption,
 } from "./types";
 
 /** Map UI preference chips to food categories / tags */
@@ -20,6 +22,24 @@ const preferenceMap: Record<Exclude<FoodPreference, "surprise">, string[]> = {
   healthy: ["healthy", "salad"],
   spicy: ["spicy"],
   dessert: ["dessert"],
+};
+
+/** Keywords to match restaurant names to a food category */
+const restaurantKeywords: Record<
+  Exclude<FoodPreference, "surprise">,
+  string[]
+> = {
+  chicken: ["chicken", "inasal", "jollibee", "kfc", "chooks"],
+  burger: ["burger", "mcdonald", "shake shack", "army navy"],
+  pizza: ["pizza", "yellow cab", "domino"],
+  noodles: ["noodle", "ramen", "mami", "pancit", "lomi"],
+  japanese: ["japanese", "sushi", "ramen", "teriyaki", "tokyo"],
+  filipino: ["filipino", "silog", "adobo", "max", "chowking"],
+  mexican: ["mexican", "taco", "burrito"],
+  pasta: ["pasta", "italian", "spaghetti"],
+  healthy: ["salad", "healthy", "green", "bowl"],
+  spicy: ["spicy", "sriracha", "pepper"],
+  dessert: ["dessert", "cafe", "milk tea", "coffee", "boba"],
 };
 
 const moodMap: Record<Exclude<Mood, "whatever">, string> = {
@@ -40,11 +60,11 @@ function scoreFood(
 ): number {
   let score = 0;
 
-  const wantsSurprise = preferences.includes("surprise") || preferences.length === 0;
+  const wantsSurprise =
+    preferences.includes("surprise") || preferences.length === 0;
   const concretePrefs = preferences.filter((p) => p !== "surprise");
 
   if (wantsSurprise && concretePrefs.length === 0) {
-    // Pure surprise — everyone starts equal, randomness decides later
     score += 5;
   }
 
@@ -62,15 +82,89 @@ function scoreFood(
     }
   }
 
-  // Prefer foods within budget; soft penalty for going over
   if (food.estimatedPricePerPerson <= budgetPerPerson) {
     score += 8;
-    // Slight boost for using most of the budget (feels more satisfying)
     const usage = food.estimatedPricePerPerson / budgetPerPerson;
     score += usage * 3;
   } else {
     const overBy = food.estimatedPricePerPerson - budgetPerPerson;
     score -= Math.min(12, overBy / 20);
+  }
+
+  return score;
+}
+
+function restaurantFoodMatchScore(
+  restaurant: Restaurant,
+  preferences: FoodPreference[],
+  food: FoodItem
+): number {
+  const name = restaurant.name.toLowerCase();
+  let score = 0;
+
+  const concrete = preferences.filter((p) => p !== "surprise");
+  const prefs =
+    concrete.length > 0 ? concrete : ([food.category] as FoodPreference[]);
+
+  for (const pref of prefs) {
+    if (pref === "surprise") continue;
+    const words = restaurantKeywords[pref] ?? [pref];
+    if (words.some((w) => name.includes(w))) {
+      score = 40;
+      break;
+    }
+  }
+
+  // Soft match from food name/tags
+  if (score < 40) {
+    const foodWords = [food.name, ...food.tags, food.category]
+      .join(" ")
+      .toLowerCase()
+      .split(/\s+/);
+    if (foodWords.some((w) => w.length > 3 && name.includes(w))) {
+      score = 30;
+    }
+  }
+
+  // General restaurant still gets some points
+  if (score === 0) {
+    score = 15;
+  }
+
+  return Math.min(40, score);
+}
+
+/** Score a restaurant 0–100 using the simple rubric from the spec */
+export function scoreRestaurant(
+  restaurant: Restaurant,
+  answers: ChooseAnswers,
+  food: FoodItem
+): number {
+  const budgetPerPerson = answers.budget / answers.people;
+  let score = 0;
+
+  score += restaurantFoodMatchScore(
+    restaurant,
+    answers.preferences,
+    food
+  );
+
+  if (food.estimatedPricePerPerson <= budgetPerPerson) {
+    score += 25;
+  } else {
+    score += Math.max(0, 25 - (food.estimatedPricePerPerson - budgetPerPerson) / 10);
+  }
+
+  // Distance: full 20 pts at 0 km, fades by 5 km
+  const distScore = Math.max(0, 20 - (restaurant.distanceKm / 5) * 20);
+  score += distScore;
+
+  if (restaurant.rating != null) {
+    score += (restaurant.rating / 5) * 10;
+  }
+
+  if (restaurant.isOpen === true) {
+    score += 5;
   }
 
   return score;
@@ -94,7 +188,6 @@ function buildSuggestedOrder(
 
   let remaining = budget - mealsTotal;
 
-  // Add simple sides/drinks if budget allows
   if (remaining >= 80 && people >= 2) {
     const friesQty = Math.max(1, Math.floor(people / 2));
     const friesPrice = friesQty * 80;
@@ -105,8 +198,7 @@ function buildSuggestedOrder(
   }
 
   if (remaining >= 50) {
-    const drinkPrice = Math.min(remaining, people * 40);
-    const drinkQty = Math.max(1, Math.round(drinkPrice / 40));
+    const drinkQty = Math.max(1, Math.round(Math.min(remaining, people * 40) / 40));
     items.push({
       label: "Drinks",
       quantity: drinkQty,
@@ -123,52 +215,130 @@ function buildSplit(people: number, totalCost: number) {
 
   return Array.from({ length: people }, (_, i) => ({
     name: `Person ${i + 1}`,
-    // Give leftover pesos to the first few people so the total matches
     amount: base + (i < remainder ? 1 : 0),
   }));
 }
 
-/**
- * Pick a food based on preferences, mood, and budget.
- * Kept intentionally simple and readable.
- */
-export function recommendFood(
+function pickFood(
   foods: FoodItem[],
   answers: ChooseAnswers,
-  excludeId?: number
-): Recommendation {
+  excludeFoodId?: number
+): FoodItem {
   const budgetPerPerson = answers.budget / answers.people;
-  const pool = excludeId ? foods.filter((f) => f.id !== excludeId) : foods;
+  const isSurprise =
+    answers.preferences.includes("surprise") ||
+    answers.preferences.length === 0;
+
+  const pool = excludeFoodId
+    ? foods.filter((f) => f.id !== excludeFoodId)
+    : foods;
   const candidates = pool.length > 0 ? pool : foods;
 
   const scored = candidates.map((food) => ({
     food,
-    score: scoreFood(food, answers.preferences, answers.mood, budgetPerPerson),
+    score: scoreFood(
+      food,
+      answers.preferences,
+      answers.mood,
+      budgetPerPerson
+    ),
   }));
 
   scored.sort((a, b) => b.score - a.score);
 
-  // Pick randomly from the top few so "Try Again" feels fresh
-  const topCount = Math.min(5, scored.length);
+  const topCount = isSurprise ? Math.min(8, scored.length) : Math.min(5, scored.length);
   const top = scored.slice(0, topCount);
-  const pick = top[Math.floor(Math.random() * top.length)].food;
+  return top[Math.floor(Math.random() * top.length)].food;
+}
 
-  const suggestedOrder = buildSuggestedOrder(pick, answers.people, answers.budget);
+function rankRestaurants(
+  restaurants: Restaurant[],
+  answers: ChooseAnswers,
+  food: FoodItem,
+  excludeRestaurantId?: string
+): RestaurantOption[] {
+  const pool = excludeRestaurantId
+    ? restaurants.filter((r) => r.id !== excludeRestaurantId)
+    : restaurants;
+
+  const costPerPerson = food.estimatedPricePerPerson;
+  const totalCost = costPerPerson * answers.people;
+
+  return pool
+    .map((restaurant) => ({
+      ...restaurant,
+      score: scoreRestaurant(restaurant, answers, food),
+      costPerPerson,
+      totalCost,
+    }))
+    .sort((a, b) => b.score - a.score);
+}
+
+export type RecommendOptions = {
+  excludeFoodId?: number;
+  excludeRestaurantId?: string;
+  restaurants?: Restaurant[];
+};
+
+/**
+ * Build food + optional nearby restaurant recommendation.
+ */
+export function buildRecommendation(
+  foods: FoodItem[],
+  answers: ChooseAnswers,
+  options: RecommendOptions = {}
+): Recommendation {
+  const isSurprise =
+    answers.preferences.includes("surprise") ||
+    answers.preferences.length === 0;
+
+  const food = pickFood(foods, answers, options.excludeFoodId);
+  const suggestedOrder = buildSuggestedOrder(
+    food,
+    answers.people,
+    answers.budget
+  );
   const totalCost = suggestedOrder.reduce((sum, item) => sum + item.price, 0);
   const costPerPerson = Math.round(totalCost / answers.people);
 
+  let restaurant: Restaurant | null = null;
+  let alternatives: RestaurantOption[] = [];
+
+  if (options.restaurants && options.restaurants.length > 0) {
+    alternatives = rankRestaurants(
+      options.restaurants,
+      answers,
+      food,
+      options.excludeRestaurantId
+    );
+    restaurant = alternatives[0] ?? null;
+    alternatives = alternatives.slice(0, 5);
+  }
+
   return {
-    food: pick,
+    food,
     people: answers.people,
     budget: answers.budget,
     costPerPerson,
     totalCost,
     suggestedOrder,
     split: buildSplit(answers.people, totalCost),
+    restaurant,
+    alternatives,
+    hasLocation: answers.location != null,
+    isSurprise,
   };
 }
 
-/** Convert a Prisma food row (moods/tags as JSON strings) into a FoodItem */
+/** @deprecated use buildRecommendation — kept for clarity in API */
+export function recommendFood(
+  foods: FoodItem[],
+  answers: ChooseAnswers,
+  excludeId?: number
+): Recommendation {
+  return buildRecommendation(foods, answers, { excludeFoodId: excludeId });
+}
+
 export function parseFoodRow(row: {
   id: number;
   name: string;

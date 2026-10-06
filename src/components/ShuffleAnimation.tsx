@@ -8,11 +8,13 @@ const SHUFFLE_EMOJIS = ["🍕", "🍜", "🍗", "🍔", "🍣", "🌮", "🍝", 
 type ShuffleAnimationProps = {
   onDone: () => void;
   durationMs?: number;
+  subtitle?: string;
 };
 
 export default function ShuffleAnimation({
   onDone,
   durationMs = 1600,
+  subtitle = "Finding something nearby...",
 }: ShuffleAnimationProps) {
   const [emoji, setEmoji] = useState(SHUFFLE_EMOJIS[0]);
 
@@ -46,6 +48,7 @@ export default function ShuffleAnimation({
       >
         {emoji}
       </motion.div>
+      <p className="text-sm text-[var(--muted)]">{subtitle}</p>
       <div className="flex gap-2">
         {SHUFFLE_EMOJIS.slice(0, 5).map((e, i) => (
           <span

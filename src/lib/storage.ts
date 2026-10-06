@@ -1,8 +1,17 @@
-import type { ChooseAnswers, Recommendation } from "./types";
+import type { ChooseAnswers, Recommendation, Restaurant } from "./types";
 
 const ANSWERS_KEY = "eatdecide-answers";
 const RESULT_KEY = "eatdecide-result";
+const RESTAURANTS_KEY = "eatdecide-restaurants";
 const SAVED_KEY = "eatdecide-saved";
+
+const defaultAnswers: ChooseAnswers = {
+  people: 2,
+  budget: 800,
+  preferences: [],
+  mood: null,
+  location: null,
+};
 
 export function saveAnswers(answers: ChooseAnswers) {
   sessionStorage.setItem(ANSWERS_KEY, JSON.stringify(answers));
@@ -12,9 +21,24 @@ export function loadAnswers(): ChooseAnswers | null {
   const raw = sessionStorage.getItem(ANSWERS_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as ChooseAnswers;
+    const parsed = JSON.parse(raw) as Partial<ChooseAnswers>;
+    return { ...defaultAnswers, ...parsed };
   } catch {
     return null;
+  }
+}
+
+export function saveRestaurants(restaurants: Restaurant[]) {
+  sessionStorage.setItem(RESTAURANTS_KEY, JSON.stringify(restaurants));
+}
+
+export function loadRestaurants(): Restaurant[] {
+  const raw = sessionStorage.getItem(RESTAURANTS_KEY);
+  if (!raw) return [];
+  try {
+    return JSON.parse(raw) as Restaurant[];
+  } catch {
+    return [];
   }
 }
 

@@ -3,14 +3,17 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import ShuffleAnimation from "@/components/ShuffleAnimation";
+import LoadingSteps from "@/components/LoadingSteps";
 import RecommendationResult from "@/components/RecommendationResult";
 import {
   isFavorite,
   loadAnswers,
+  loadRestaurants,
   saveFavorite,
+  saveRestaurants,
   saveResult,
 } from "@/lib/storage";
-import type { Recommendation } from "@/lib/types";
+import type { Recommendation, Restaurant } from "@/lib/types";
 
 export default function ResultPage() {
   const router = useRouter();
@@ -18,36 +21,75 @@ export default function ResultPage() {
     "loading"
   );
   const [result, setResult] = useState<Recommendation | null>(null);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [restaurantsWarning, setRestaurantsWarning] = useState<string | null>(
+    null
+  );
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchRecommendation = useCallback(async (excludeId?: number) => {
-    const answers = loadAnswers();
-    if (!answers) {
-      router.replace("/");
-      return null;
-    }
+  const fetchRecommendation = useCallback(
+    async (options?: {
+      excludeFoodId?: number;
+      excludeRestaurantId?: string;
+      cachedRestaurants?: Restaurant[];
+    }) => {
+      const answers = loadAnswers();
+      if (!answers) {
+        router.replace("/");
+        return null;
+      }
 
-    const response = await fetch("/api/recommend", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ answers, excludeId }),
-    });
+      const response = await fetch("/api/recommend", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          answers,
+          excludeFoodId: options?.excludeFoodId,
+          excludeRestaurantId: options?.excludeRestaurantId,
+          restaurants: options?.cachedRestaurants,
+        }),
+      });
 
-    if (!response.ok) {
-      throw new Error("Could not get a recommendation");
-    }
+      if (!response.ok) {
+        throw new Error("Could not get a recommendation");
+      }
 
-    const data = (await response.json()) as { recommendation: Recommendation };
-    return data.recommendation;
-  }, [router]);
+      const data = (await response.json()) as {
+        recommendation: Recommendation;
+        restaurants: Restaurant[];
+        restaurantsError?: string | null;
+      };
+
+      if (data.restaurants?.length) {
+        setRestaurants(data.restaurants);
+        saveRestaurants(data.restaurants);
+      }
+
+      if (data.restaurantsError && answers.location) {
+        setRestaurantsWarning(data.restaurantsError);
+      } else if (
+        answers.location &&
+        data.restaurants?.length === 0 &&
+        !data.recommendation.restaurant
+      ) {
+        setRestaurantsWarning("no_results");
+      }
+
+      return data.recommendation;
+    },
+    [router]
+  );
 
   useEffect(() => {
     let cancelled = false;
 
     async function start() {
       try {
-        const recommendation = await fetchRecommendation();
+        const cached = loadRestaurants();
+        const recommendation = await fetchRecommendation({
+          cachedRestaurants: cached.length > 0 ? cached : undefined,
+        });
         if (cancelled || !recommendation) return;
         setResult(recommendation);
         saveResult(recommendation);
@@ -73,7 +115,12 @@ export default function ResultPage() {
     setPhase("loading");
     setError(null);
     try {
-      const next = await fetchRecommendation(result.food.id);
+      const cached = restaurants.length > 0 ? restaurants : loadRestaurants();
+      const next = await fetchRecommendation({
+        excludeFoodId: result.food.id,
+        excludeRestaurantId: result.restaurant?.id,
+        cachedRestaurants: cached.length > 0 ? cached : undefined,
+      });
       if (!next) return;
       setResult(next);
       saveResult(next);
@@ -85,17 +132,37 @@ export default function ResultPage() {
     }
   }
 
+  function handlePickAlternative(restaurantId: string) {
+    if (!result) return;
+    const picked = result.alternatives.find((r) => r.id === restaurantId);
+    if (!picked) return;
+
+    const updated: Recommendation = {
+      ...result,
+      restaurant: picked,
+    };
+    setResult(updated);
+    saveResult(updated);
+  }
+
   function handleSave() {
     if (!result) return;
     saveFavorite(result);
     setSaved(true);
   }
 
+  const answers = loadAnswers();
+  const hasLocation = Boolean(answers?.location);
+
   if (error && !result) {
     return (
       <main className="app-shell flex min-h-full flex-col items-center justify-center gap-4 py-12 text-center">
         <p className="text-[var(--muted)]">{error}</p>
-        <button type="button" onClick={() => router.push("/")} className="btn-primary">
+        <button
+          type="button"
+          onClick={() => router.push("/")}
+          className="btn-primary"
+        >
           Start over
         </button>
       </main>
@@ -105,28 +172,29 @@ export default function ResultPage() {
   return (
     <main className="min-h-full">
       <div className="app-shell py-8">
-        {phase === "loading" && (
-          <div className="flex min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--muted)]">
-              Getting ready...
-            </p>
-            <span className="animate-bounce text-5xl" aria-hidden="true">
-              🍽️
-            </span>
-          </div>
-        )}
+        {phase === "loading" && <LoadingSteps hasLocation={hasLocation} />}
 
         {phase === "shuffle" && (
-          <ShuffleAnimation onDone={handleShuffleDone} />
+          <ShuffleAnimation
+            onDone={handleShuffleDone}
+            subtitle={
+              hasLocation
+                ? "Finding something nearby..."
+                : "Picking your food..."
+            }
+          />
         )}
 
         {phase === "result" && result && (
           <RecommendationResult
             result={result}
             saved={saved}
+            userLocation={answers?.location ?? null}
+            restaurantsWarning={restaurantsWarning}
             onTryAgain={handleTryAgain}
             onChangeChoices={() => router.push("/choose")}
             onSave={handleSave}
+            onPickAlternative={handlePickAlternative}
           />
         )}
 

@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     template: "%s | EatDecide",
   },
   description:
-    "Can't decide what to eat? EatDecide helps you choose what to eat based on your budget, group size, cravings, and mood.",
+    "Can't decide what to eat? EatDecide helps you choose food based on your budget, group size, cravings, mood, and nearby restaurants.",
   keywords: [
     "what should I eat",
     "what should I eat tonight",
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "What Should I Eat? | EatDecide",
     description:
-      "Can't decide what to eat? EatDecide helps you choose what to eat based on your budget, group size, cravings, and mood.",
+      "Can't decide what to eat? EatDecide helps you choose food based on your budget, group size, cravings, mood, and nearby restaurants.",
     siteName: "EatDecide",
     type: "website",
     locale: "en_PH",
@@ -37,7 +37,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "What Should I Eat? | EatDecide",
     description:
-      "Stop thinking. Start eating. Get a food recommendation based on your group, budget, and mood.",
+      "Stop thinking. Start eating. Food picks, nearby restaurants, and budget estimates for your group.",
   },
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"

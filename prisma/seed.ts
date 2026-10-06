@@ -11,6 +11,15 @@ const foods = [
     tags: ["chicken", "filipino", "grilled"],
   },
   {
+    name: "Roasted Chicken",
+    emoji: "🍗",
+    category: "chicken",
+    estimatedPricePerPerson: 180,
+    description: "Classic roasted chicken — great for sharing with the group.",
+    moods: ["hungry", "filling", "delicious"],
+    tags: ["chicken", "roasted", "shareable"],
+  },
+  {
     name: "Fried Chicken",
     emoji: "🍗",
     category: "chicken",

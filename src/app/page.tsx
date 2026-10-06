@@ -3,17 +3,19 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
-import { saveAnswers } from "@/lib/storage";
+import { saveAnswers, saveRestaurants } from "@/lib/storage";
 
 export default function HomePage() {
   const router = useRouter();
 
   function surpriseMe() {
+    saveRestaurants([]);
     saveAnswers({
       people: 2,
       budget: 800,
       preferences: ["surprise"],
       mood: "whatever",
+      location: null,
     });
     router.push("/result");
   }

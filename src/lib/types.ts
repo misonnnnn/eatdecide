@@ -33,17 +33,41 @@ export type Mood =
   | "sweet"
   | "whatever";
 
+export type UserLocation = {
+  latitude: number;
+  longitude: number;
+};
+
 export type ChooseAnswers = {
   people: number;
   budget: number;
   preferences: FoodPreference[];
   mood: Mood | null;
+  location: UserLocation | null;
 };
 
 export type OrderItem = {
   label: string;
   quantity: number;
   price: number;
+};
+
+export type Restaurant = {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  distanceKm: number;
+  rating?: number;
+  address?: string;
+  isOpen?: boolean;
+  googleMapsUrl?: string;
+};
+
+export type RestaurantOption = Restaurant & {
+  score: number;
+  costPerPerson: number;
+  totalCost: number;
 };
 
 export type Recommendation = {
@@ -54,4 +78,8 @@ export type Recommendation = {
   totalCost: number;
   suggestedOrder: OrderItem[];
   split: { name: string; amount: number }[];
+  restaurant: Restaurant | null;
+  alternatives: RestaurantOption[];
+  hasLocation: boolean;
+  isSurprise: boolean;
 };

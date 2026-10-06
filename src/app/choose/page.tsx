@@ -8,16 +8,21 @@ import PeopleSelector from "@/components/PeopleSelector";
 import BudgetSelector from "@/components/BudgetSelector";
 import FoodSelector from "@/components/FoodSelector";
 import MoodSelector from "@/components/MoodSelector";
-import { loadAnswers, saveAnswers } from "@/lib/storage";
-import type { FoodPreference, Mood } from "@/lib/types";
+import LocationSelector, {
+  requestUserLocation,
+  type LocationState,
+} from "@/components/LocationSelector";
+import { loadAnswers, saveAnswers, saveRestaurants } from "@/lib/storage";
+import type { FoodPreference, Mood, UserLocation } from "@/lib/types";
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 
 const defaults = {
   people: 2,
   budget: 800,
   preferences: [] as FoodPreference[],
   mood: null as Mood | null,
+  location: null as UserLocation | null,
 };
 
 function subscribe() {
@@ -25,7 +30,8 @@ function subscribe() {
 }
 
 function getClientAnswers() {
-  return JSON.stringify(loadAnswers() ?? defaults);
+  const saved = loadAnswers();
+  return JSON.stringify(saved ?? defaults);
 }
 
 function getServerAnswers() {
@@ -39,7 +45,6 @@ const slide = {
 };
 
 export default function ChoosePage() {
-  // Restore previous answers from sessionStorage after hydration
   const stored = useSyncExternalStore(
     subscribe,
     getClientAnswers,
@@ -60,6 +65,42 @@ function ChooseForm({ initial }: { initial: typeof defaults }) {
     initial.preferences
   );
   const [mood, setMood] = useState<Mood | null>(initial.mood);
+  const [location, setLocation] = useState<UserLocation | null>(
+    initial.location
+  );
+  const [locationState, setLocationState] = useState<LocationState>(
+    initial.location
+      ? { status: "success", location: initial.location }
+      : { status: "idle" }
+  );
+  const [locationResolved, setLocationResolved] = useState(
+    Boolean(initial.location)
+  );
+
+  async function handleRequestLocation() {
+    setLocationState({ status: "loading" });
+    try {
+      const coords = await requestUserLocation();
+      setLocation(coords);
+      setLocationState({ status: "success", location: coords });
+      setLocationResolved(true);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "error";
+      if (message === "denied") {
+        setLocationState({ status: "denied" });
+      } else {
+        setLocationState({
+          status: "error",
+          message: "Location unavailable",
+        });
+      }
+    }
+  }
+
+  function handleContinueWithoutLocation() {
+    setLocation(null);
+    setLocationResolved(true);
+  }
 
   function goNext() {
     if (step < TOTAL_STEPS) {
@@ -80,17 +121,21 @@ function ChooseForm({ initial }: { initial: typeof defaults }) {
   }
 
   function finish(selectedMood: Mood | null) {
+    // Clear cached restaurants so a new search runs with updated choices
+    saveRestaurants([]);
     saveAnswers({
       people,
       budget,
       preferences: preferences.length > 0 ? preferences : ["surprise"],
-      mood: selectedMood,
+      mood: selectedMood ?? mood,
+      location,
     });
     router.push("/result");
   }
 
   function canContinue() {
     if (step === 3) return preferences.length > 0;
+    if (step === TOTAL_STEPS) return locationResolved;
     return true;
   }
 
@@ -171,6 +216,23 @@ function ChooseForm({ initial }: { initial: typeof defaults }) {
                   <MoodSelector selected={mood} onChange={setMood} />
                 </>
               )}
+
+              {step === 5 && (
+                <>
+                  <h1 className="mb-2 text-center text-3xl font-bold tracking-tight sm:text-4xl">
+                    Find something near you?
+                  </h1>
+                  <p className="mb-8 text-center text-[var(--muted)]">
+                    We only ask when you&apos;re ready — not on the homepage.
+                  </p>
+                  <LocationSelector
+                    state={locationState}
+                    onRequest={handleRequestLocation}
+                    onContinueWithout={handleContinueWithoutLocation}
+                    onTryAgain={handleRequestLocation}
+                  />
+                </>
+              )}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -179,7 +241,11 @@ function ChooseForm({ initial }: { initial: typeof defaults }) {
           {step === 4 && (
             <button
               type="button"
-              onClick={() => finish(null)}
+              onClick={() => {
+                setMood(null);
+                setDirection(1);
+                setStep(5);
+              }}
               className="btn-ghost"
             >
               Skip this
