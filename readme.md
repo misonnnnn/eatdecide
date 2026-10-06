@@ -1,1 +1,1 @@
-initial development of EatDecide
+Initial Development for EatDecide
