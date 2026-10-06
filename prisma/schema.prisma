@@ -1,0 +1,24 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Food {
+  id                       Int      @id @default(autoincrement())
+  name                     String   @db.VarChar(100)
+  emoji                    String   @db.VarChar(10)
+  category                 String   @db.VarChar(50)
+  estimatedPricePerPerson  Int      @map("estimated_price_per_person")
+  description              String   @db.VarChar(255)
+  // JSON arrays stored as strings for simplicity, e.g. ["hungry","filling"]
+  moods                    String   @db.Text
+  tags                     String   @db.Text
+  createdAt                DateTime @default(now()) @map("created_at")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  @@map("foods")
+}
