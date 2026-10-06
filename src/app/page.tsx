@@ -27,29 +27,29 @@ export default function HomePage() {
           transition={{ duration: 0.45 }}
           className="flex flex-col items-center text-center"
         >
-          <p className="mb-6 text-sm font-bold uppercase tracking-[0.25em] text-[var(--accent)]">
-            EatDecide
-          </p>
-
-          <h1 className="text-4xl font-extrabold leading-tight tracking-tight sm:text-5xl">
-            What should we eat?
-          </h1>
-
-          <p className="mt-4 max-w-xs text-lg text-[var(--muted)]">
-            Stop thinking. Let us decide.
-          </p>
-
           <motion.div
-            initial={{ opacity: 0, scale: 0.9 }}
+            initial={{ opacity: 0, scale: 0.85 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.15, duration: 0.4 }}
-            className="mt-10 mb-12 text-7xl"
+            transition={{ delay: 0.05, duration: 0.4 }}
+            className="mb-8 text-6xl sm:text-7xl"
             aria-hidden="true"
           >
             🍽️
           </motion.div>
 
-          <div className="flex w-full flex-col gap-3">
+          <h1 className="text-5xl font-extrabold tracking-tight text-[var(--accent)] sm:text-6xl">
+            EatDecide
+          </h1>
+
+          <p className="mt-5 text-2xl font-bold tracking-tight text-[var(--foreground)] sm:text-3xl">
+            What should we eat?
+          </p>
+
+          <p className="mt-3 max-w-xs text-base text-[var(--muted)] sm:text-lg">
+            Stop thinking. Let us decide.
+          </p>
+
+          <div className="mt-10 flex w-full flex-col gap-3">
             <button type="button" onClick={surpriseMe} className="btn-primary">
               🎰 Surprise Me
             </button>

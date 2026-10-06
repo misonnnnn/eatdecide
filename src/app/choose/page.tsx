@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import ProgressBar from "@/components/ProgressBar";
@@ -8,10 +8,29 @@ import PeopleSelector from "@/components/PeopleSelector";
 import BudgetSelector from "@/components/BudgetSelector";
 import FoodSelector from "@/components/FoodSelector";
 import MoodSelector from "@/components/MoodSelector";
-import { saveAnswers } from "@/lib/storage";
+import { loadAnswers, saveAnswers } from "@/lib/storage";
 import type { FoodPreference, Mood } from "@/lib/types";
 
 const TOTAL_STEPS = 4;
+
+const defaults = {
+  people: 2,
+  budget: 800,
+  preferences: [] as FoodPreference[],
+  mood: null as Mood | null,
+};
+
+function subscribe() {
+  return () => {};
+}
+
+function getClientAnswers() {
+  return JSON.stringify(loadAnswers() ?? defaults);
+}
+
+function getServerAnswers() {
+  return JSON.stringify(defaults);
+}
 
 const slide = {
   enter: (dir: number) => ({ x: dir > 0 ? 40 : -40, opacity: 0 }),
@@ -20,13 +39,27 @@ const slide = {
 };
 
 export default function ChoosePage() {
+  // Restore previous answers from sessionStorage after hydration
+  const stored = useSyncExternalStore(
+    subscribe,
+    getClientAnswers,
+    getServerAnswers
+  );
+  const initial = JSON.parse(stored) as typeof defaults;
+
+  return <ChooseForm key={stored} initial={initial} />;
+}
+
+function ChooseForm({ initial }: { initial: typeof defaults }) {
   const router = useRouter();
   const [step, setStep] = useState(1);
   const [direction, setDirection] = useState(1);
-  const [people, setPeople] = useState(2);
-  const [budget, setBudget] = useState(800);
-  const [preferences, setPreferences] = useState<FoodPreference[]>([]);
-  const [mood, setMood] = useState<Mood | null>(null);
+  const [people, setPeople] = useState(initial.people);
+  const [budget, setBudget] = useState(initial.budget);
+  const [preferences, setPreferences] = useState<FoodPreference[]>(
+    initial.preferences
+  );
+  const [mood, setMood] = useState<Mood | null>(initial.mood);
 
   function goNext() {
     if (step < TOTAL_STEPS) {
