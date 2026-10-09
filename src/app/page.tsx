@@ -1,21 +1,34 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import { requestUserLocation } from "@/components/LocationSelector";
 import { saveAnswers, saveRestaurants } from "@/lib/storage";
+import type { UserLocation } from "@/lib/types";
 
 export default function HomePage() {
   const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
-  function surpriseMe() {
+  async function surpriseMe() {
+    setLoading(true);
     saveRestaurants([]);
+
+    let location: UserLocation | null = null;
+    try {
+      location = await requestUserLocation();
+    } catch {
+      // Continue without location if denied or unavailable
+    }
+
     saveAnswers({
       people: 2,
       budget: 800,
       preferences: ["surprise"],
       mood: "whatever",
-      location: null,
+      location,
     });
     router.push("/result");
   }
@@ -52,8 +65,13 @@ export default function HomePage() {
           </p>
 
           <div className="mt-10 flex w-full flex-col gap-3">
-            <button type="button" onClick={surpriseMe} className="btn-primary">
-              🎰 Surprise Me
+            <button
+              type="button"
+              onClick={surpriseMe}
+              disabled={loading}
+              className="btn-primary"
+            >
+              {loading ? "Getting location..." : "🎰 Surprise Me"}
             </button>
             <Link href="/choose" className="btn-secondary">
               Help Me Choose
