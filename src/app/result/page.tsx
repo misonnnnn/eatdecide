@@ -13,7 +13,7 @@ import {
   saveRestaurants,
   saveResult,
 } from "@/lib/storage";
-import type { Recommendation, Restaurant } from "@/lib/types";
+import type { Recommendation, Restaurant, UserLocation } from "@/lib/types";
 
 export default function ResultPage() {
   const router = useRouter();
@@ -27,6 +27,8 @@ export default function ResultPage() {
   );
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [hasLocation, setHasLocation] = useState(false);
+  const [userLocation, setUserLocation] = useState<UserLocation | null>(null);
 
   const fetchRecommendation = useCallback(
     async (options?: {
@@ -86,6 +88,11 @@ export default function ResultPage() {
 
     async function start() {
       try {
+        const answers = loadAnswers();
+        if (!cancelled) {
+          setHasLocation(Boolean(answers?.location));
+          setUserLocation(answers?.location ?? null);
+        }
         const cached = loadRestaurants();
         const recommendation = await fetchRecommendation({
           cachedRestaurants: cached.length > 0 ? cached : undefined,
@@ -151,9 +158,6 @@ export default function ResultPage() {
     setSaved(true);
   }
 
-  const answers = loadAnswers();
-  const hasLocation = Boolean(answers?.location);
-
   if (error && !result) {
     return (
       <main className="app-shell flex min-h-full flex-col items-center justify-center gap-4 py-12 text-center">
@@ -189,7 +193,7 @@ export default function ResultPage() {
           <RecommendationResult
             result={result}
             saved={saved}
-            userLocation={answers?.location ?? null}
+            userLocation={userLocation}
             restaurantsWarning={restaurantsWarning}
             onTryAgain={handleTryAgain}
             onChangeChoices={() => router.push("/choose")}

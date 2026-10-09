@@ -13,11 +13,17 @@ const defaultAnswers: ChooseAnswers = {
   location: null,
 };
 
+function canUseBrowserStorage() {
+  return typeof window !== "undefined";
+}
+
 export function saveAnswers(answers: ChooseAnswers) {
+  if (!canUseBrowserStorage()) return;
   sessionStorage.setItem(ANSWERS_KEY, JSON.stringify(answers));
 }
 
 export function loadAnswers(): ChooseAnswers | null {
+  if (!canUseBrowserStorage()) return null;
   const raw = sessionStorage.getItem(ANSWERS_KEY);
   if (!raw) return null;
   try {
@@ -29,10 +35,12 @@ export function loadAnswers(): ChooseAnswers | null {
 }
 
 export function saveRestaurants(restaurants: Restaurant[]) {
+  if (!canUseBrowserStorage()) return;
   sessionStorage.setItem(RESTAURANTS_KEY, JSON.stringify(restaurants));
 }
 
 export function loadRestaurants(): Restaurant[] {
+  if (!canUseBrowserStorage()) return [];
   const raw = sessionStorage.getItem(RESTAURANTS_KEY);
   if (!raw) return [];
   try {
@@ -43,10 +51,12 @@ export function loadRestaurants(): Restaurant[] {
 }
 
 export function saveResult(result: Recommendation) {
+  if (!canUseBrowserStorage()) return;
   sessionStorage.setItem(RESULT_KEY, JSON.stringify(result));
 }
 
 export function loadResult(): Recommendation | null {
+  if (!canUseBrowserStorage()) return null;
   const raw = sessionStorage.getItem(RESULT_KEY);
   if (!raw) return null;
   try {
@@ -57,6 +67,7 @@ export function loadResult(): Recommendation | null {
 }
 
 export function saveFavorite(result: Recommendation) {
+  if (!canUseBrowserStorage()) return;
   const existing = loadFavorites();
   const next = [
     {
@@ -76,6 +87,7 @@ export function loadFavorites(): {
   emoji: string;
   savedAt: string;
 }[] {
+  if (!canUseBrowserStorage()) return [];
   const raw = localStorage.getItem(SAVED_KEY);
   if (!raw) return [];
   try {
